@@ -9,6 +9,20 @@ const P: u64 = u64::wrapping_neg(1 << 32) + 1;
 struct Field(u64);
 
 impl Field {
+    /// Create the zero element of this field.
+    ///
+    /// This is the identity for addition.
+    pub fn zero() -> Self {
+        Field(0)
+    }
+
+    /// Create the one element of this field.
+    ///
+    /// This is the identity for multiplication.
+    pub fn one() -> Self {
+        Field(1)
+    }
+
     /// Add another field element to this one.
     fn add_mut(&mut self, other: &Field) {
         // Because a, b are at most P - 1, the result of addition is at most
@@ -42,6 +56,20 @@ impl Field {
 // references, which is quite convenient.
 impl_op_ex!(+ |a: &Field, b: &Field| -> Field { a.add(b) });
 impl_op_ex!(+= |a: &mut Field, b: &Field| { a.add_mut(b) });
+
+// We might want to create the field from u64s, for example, when deserializing.
+impl From<u64> for Field {
+    fn from(x: u64) -> Self {
+        Field(x % P)
+    }
+}
+
+// Also useful to be able to serialize fields as u64s.
+impl From<Field> for u64 {
+    fn from(x: Field) -> Self {
+        x.0
+    }
+}
 
 #[cfg(test)]
 mod test {
