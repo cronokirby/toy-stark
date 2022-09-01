@@ -42,3 +42,24 @@ impl Field {
 // references, which is quite convenient.
 impl_op_ex!(+ |a: &Field, b: &Field| -> Field { a.add(b) });
 impl_op_ex!(+= |a: &mut Field, b: &Field| { a.add_mut(b) });
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    use proptest::prelude::*;
+
+    /// A strategy to generate arbitrary field elements.
+    fn arb_field() -> impl Strategy<Value = Field> {
+        // While not cryptographically secure to reduce such a small element,
+        // this is more than enough for our testing purposes.
+        any::<u64>().prop_map(|x| Field(x % P))
+    }
+
+    proptest! {
+        #[test]
+        fn test_addition_commutative(a in arb_field(), b in arb_field()) {
+            assert_eq!(a + b, b + a);
+        }
+    }
+}

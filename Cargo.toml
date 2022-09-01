@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 auto_ops = "0.3.0"
+proptest = "1.0.0"
