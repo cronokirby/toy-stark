@@ -90,4 +90,11 @@ mod test {
             assert_eq!(a + b, b + a);
         }
     }
+
+    proptest! {
+        #[test]
+        fn test_addition_identity(a in arb_field()) {
+            assert_eq!(a + Field::zero(), a);
+        }
+    }
 }
