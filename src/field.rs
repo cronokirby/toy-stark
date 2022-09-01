@@ -47,6 +47,28 @@ impl Field {
         out.add_mut(other);
         out
     }
+
+    /// Subtract another field element from this one.
+    fn sub_mut(&mut self, other: &Field) {
+        // The strategy here is to perform the subtraction, and then add back P
+        // if an underflow happened. This will always result in a value < P.
+        // If no underflow happened, this is clear, since both values were < P.
+        // If an underflow happened, the largest result we can have is -1. Adding
+        // P gives us P - 1, which is < P, so everything works.
+        let (subtraction, underflow) = self.0.overflowing_sub(other.0);
+        self.0 = if underflow {
+            subtraction.wrapping_add(P)
+        } else {
+            subtraction
+        };
+    }
+
+    /// Return the result of subtracting another field element from this one.
+    fn sub(&self, other: &Field) -> Field {
+        let mut out = *self;
+        out.sub_mut(other);
+        out
+    }
 }
 
 // Now, use all of the functions we've defined inside of the struct to implement
@@ -56,6 +78,8 @@ impl Field {
 // references, which is quite convenient.
 impl_op_ex!(+ |a: &Field, b: &Field| -> Field { a.add(b) });
 impl_op_ex!(+= |a: &mut Field, b: &Field| { a.add_mut(b) });
+impl_op_ex!(-|a: &Field, b: &Field| -> Field { a.sub(b) });
+impl_op_ex!(-= |a: &mut Field, b: &Field| { a.sub_mut(b) });
 
 // We might want to create the field from u64s, for example, when deserializing.
 impl From<u64> for Field {
@@ -98,8 +122,21 @@ mod test {
         }
     }
 
+    proptest! {
+        #[test]
+        fn test_subtraction_with_self_is_zero(a in arb_field()) {
+            assert_eq!(a - a, Field::zero());
+        }
+    }
+
     #[test]
     fn test_one_plus_one_is_two() {
         assert_eq!(Field::from(1) + Field::from(1), Field::from(2));
+    }
+
+    #[test]
+    fn test_subtraction_examples() {
+        assert_eq!(Field::one() - Field::one(), Field::zero());
+        assert_eq!(Field::zero() - Field::one(), Field::from(P - 1));
     }
 }
