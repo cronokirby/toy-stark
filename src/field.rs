@@ -97,4 +97,9 @@ mod test {
             assert_eq!(a + Field::zero(), a);
         }
     }
+
+    #[test]
+    fn test_one_plus_one_is_two() {
+        assert_eq!(Field::from(1) + Field::from(1), Field::from(2));
+    }
 }
