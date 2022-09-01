@@ -69,6 +69,48 @@ impl Field {
         out.sub_mut(other);
         out
     }
+
+    /// Reduce a 128 bit integer into a field element.
+    fn reduce_128(x: u128) -> Field {
+        // We exploit special properties of the field.
+        //
+        // First, 2^64 = 2^32 - 1 mod P.
+        //
+        // Second, 2^96 = 2^32(2^32 - 1) = 2^64 - 2^32 = -1 mod P.
+        //
+        // Thus, if we write a 128 bit integer x as:
+        //     x = c 2^96 + b 2^64 + a
+        // We have:
+        //     x = b (2^32 - 1) + (a - c) mod P
+        // And this expression will be our strategy for performing the reduction.
+        let a = x as u64;
+        let b = ((x >> 64) & 0xFF_FF_FF_FF) as u64;
+        let c = (x >> 96) as u64;
+
+        // While we lean on existing code, we need to be careful because some of
+        // these types are partially reduced.
+        //
+        // First, if we look at a - c, the end result with our field code can
+        // be any 64 bit value (consider c = 0). We can also make the same assumption
+        // for (b << 32) - b. The question then becomes, is Field(x) + Field(y)
+        // ok even if both x and y are arbitrary u64 values?
+        //
+        // Yes. Even if x and y have the maximum value, a single subtraction of P
+        // would suffice to make their sum < P. Thus, our strategy for field addition
+        // will always work.
+        (Field(a) - Field(c)) + Field((b << 32) - b)
+    }
+
+    /// Return the multiplication of this field element with another.
+    fn mul(&self, other: &Field) -> Field {
+        // 128 bit multiplications don't optimize too badly actually.
+        Field::reduce_128(u128::from(self.0) * u128::from(other.0))
+    }
+
+    /// Modify this element by multiplying it with another.
+    fn mul_mut(&mut self, other: &Field) {
+        *self = self.mul(other);
+    }
 }
 
 // Now, use all of the functions we've defined inside of the struct to implement
@@ -80,6 +122,8 @@ impl_op_ex!(+ |a: &Field, b: &Field| -> Field { a.add(b) });
 impl_op_ex!(+= |a: &mut Field, b: &Field| { a.add_mut(b) });
 impl_op_ex!(-|a: &Field, b: &Field| -> Field { a.sub(b) });
 impl_op_ex!(-= |a: &mut Field, b: &Field| { a.sub_mut(b) });
+impl_op_ex!(*|a: &Field, b: &Field| -> Field { a.mul(b) });
+impl_op_ex!(*= |a: &mut Field, b: &Field| { a.mul_mut(b) });
 
 // We might want to create the field from u64s, for example, when deserializing.
 impl From<u64> for Field {
@@ -129,6 +173,20 @@ mod test {
         }
     }
 
+    proptest! {
+        #[test]
+        fn test_multiplication_commutative(a in arb_field(), b in arb_field()) {
+            assert_eq!(a * b, b * a);
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn test_multiplication_identity(a in arb_field()) {
+            assert_eq!(a * Field::one(), a);
+        }
+    }
+
     #[test]
     fn test_one_plus_one_is_two() {
         assert_eq!(Field::from(1) + Field::from(1), Field::from(2));
@@ -138,5 +196,11 @@ mod test {
     fn test_subtraction_examples() {
         assert_eq!(Field::one() - Field::one(), Field::zero());
         assert_eq!(Field::zero() - Field::one(), Field::from(P - 1));
+    }
+
+    #[test]
+    fn test_multiplication_examples() {
+        assert_eq!(Field::from(2) * Field::from(2), Field::from(4));
+        assert_eq!(Field::from(P - 1) * Field::from(P - 1), Field::one());
     }
 }
