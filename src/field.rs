@@ -36,6 +36,16 @@ impl Field {
         Field(7)
     }
 
+    /// A 2^32th root of unity.
+    ///
+    /// This is a value x such that x^(2^32) = 1.
+    ///
+    /// This is very useful, because it allows us to perform Number Theoretic Transforms
+    /// over this field, which is a very quick method to multiply polynomials.
+    pub fn root_of_unity() -> Self {
+        Field(20033703337)
+    }
+
     /// Add another field element to this one.
     fn add_mut(&mut self, other: &Field) {
         // Because a, b are at most P - 1, the result of addition is at most
@@ -277,5 +287,16 @@ mod test {
     #[test]
     fn test_inverse_minus_one_is_one() {
         assert_eq!(Field::from(P - 1).inverse(), Field::from(P - 1));
+    }
+
+    #[test]
+    fn test_root_of_unity() {
+        let mut out = Field::root_of_unity();
+        for _ in 0..31 {
+            out = out * out;
+        }
+        assert_ne!(out, Field::one());
+        out = out * out;
+        assert_eq!(out, Field::one());
     }
 }
