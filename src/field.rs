@@ -1,4 +1,5 @@
 use auto_ops::impl_op_ex;
+use std::mem;
 
 /// The modulus P := 2^64 - 2^32 + 1.
 ///
@@ -111,6 +112,44 @@ impl Field {
     fn mul_mut(&mut self, other: &Field) {
         *self = self.mul(other);
     }
+
+    /// Return self / 2 mod P.
+    ///
+    /// This is a utility function, mainly used when inverting field elements.
+    fn half_mod_p(&self) -> Field {
+        if self.0 & 1 == 0 {
+            Field(self.0 >> 1)
+        } else {
+            let (addition, carry) = self.0.overflowing_add(P);
+            Field((addition >> 1) | (u64::from(carry) << 63))
+        }
+    }
+
+    /// Return the inverse of this field element.
+    /// 
+    /// This is an element x such that x * self = 1.
+    pub fn inverse(&self) -> Field {
+        let mut a = self.0;
+        let mut u = Field(1u64);
+        let mut b = P;
+        let mut v = Field(0u64);
+
+        while a != 0 {
+            if a & 1 == 0 {
+                a >>= 1;
+                u = u.half_mod_p();
+            } else {
+                if a < b {
+                    mem::swap(&mut a, &mut b);
+                    mem::swap(&mut u, &mut v);
+                }
+                a = (a - b) >> 1;
+                u = (u - v).half_mod_p();
+            }
+        }
+
+        v
+    }
 }
 
 // Now, use all of the functions we've defined inside of the struct to implement
@@ -124,6 +163,8 @@ impl_op_ex!(-|a: &Field, b: &Field| -> Field { a.sub(b) });
 impl_op_ex!(-= |a: &mut Field, b: &Field| { a.sub_mut(b) });
 impl_op_ex!(*|a: &Field, b: &Field| -> Field { a.mul(b) });
 impl_op_ex!(*= |a: &mut Field, b: &Field| { a.mul_mut(b) });
+impl_op_ex!(/|a: &Field, b: &Field| -> Field { a.mul(&b.inverse()) });
+impl_op_ex!(/= |a: &mut Field, b: &Field| { a.mul_mut(&b.inverse()) });
 
 // We might want to create the field from u64s, for example, when deserializing.
 impl From<u64> for Field {
@@ -150,6 +191,11 @@ mod test {
         // While not cryptographically secure to reduce such a small element,
         // this is more than enough for our testing purposes.
         any::<u64>().prop_map(|x| Field(x % P))
+    }
+
+    /// A strategy to generate non-zero field elements.
+    fn arb_field_non_zero() -> impl Strategy<Value = Field> {
+        arb_field().prop_filter("field elements must be non-zero", |x| x != &Field::zero())
     }
 
     proptest! {
@@ -187,6 +233,13 @@ mod test {
         }
     }
 
+    proptest! {
+        #[test]
+        fn test_division_by_self_is_one(a in arb_field_non_zero()) {
+            assert_eq!(a / a, Field::one());
+        }
+    }
+
     #[test]
     fn test_one_plus_one_is_two() {
         assert_eq!(Field::from(1) + Field::from(1), Field::from(2));
@@ -202,5 +255,15 @@ mod test {
     fn test_multiplication_examples() {
         assert_eq!(Field::from(2) * Field::from(2), Field::from(4));
         assert_eq!(Field::from(P - 1) * Field::from(P - 1), Field::one());
+    }
+
+    #[test]
+    fn test_inverse_one_is_one() {
+        assert_eq!(Field::one().inverse(), Field::one());
+    }
+
+    #[test]
+    fn test_inverse_minus_one_is_one() {
+        assert_eq!(Field::from(P - 1).inverse(), Field::from(P - 1));
     }
 }
