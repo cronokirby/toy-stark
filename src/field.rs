@@ -24,6 +24,18 @@ impl Field {
         Field(1)
     }
 
+    /// A generator of this field.
+    ///
+    /// This is an element x such that every other non-zero element y = x^a,
+    /// for some exponent a.
+    ///
+    /// Sometimes you need to ensure that two sets of element don't intersect,
+    /// but you don't want to mess with the multiplicative structure of those elements:
+    /// multiplying by the generator allows separating the two sets in this way.
+    pub fn generator() -> Self {
+        Field(7)
+    }
+
     /// Add another field element to this one.
     fn add_mut(&mut self, other: &Field) {
         // Because a, b are at most P - 1, the result of addition is at most
