@@ -202,6 +202,7 @@ impl From<Field> for u64 {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
 struct ExtensionField {
     // Represents a polynomial a0 + a1 X + a2 X^2, in that order.
     data: [Field; 3],
@@ -241,8 +242,34 @@ impl ExtensionField {
             data: [Field(4), Field(1), Field::zero()],
         }
     }
+
+    /// Modify this element by adding another.
+    ///
+    /// Having this is useful because extension field elements are somewhat large.
+    fn add_mut(&mut self, other: &Self) {
+        self.data
+            .iter_mut()
+            .zip(other.data.iter())
+            .for_each(|(a, b)| *a += b);
+    }
+
+    /// Return the result of adding two elements together.
+    fn add(&self, other: &Self) -> Self {
+        let mut out = *self;
+        out.add_mut(other);
+        out
+    }
 }
 
+// Now, use all of the functions we've defined inside of the struct to implement
+// all of the associated operators.
+//
+// We use macros in order to generate implementations for both plain values and
+// references, which is quite convenient.
+impl_op_ex!(+ |a: &ExtensionField, b: &ExtensionField| -> ExtensionField { a.add(b) });
+impl_op_ex!(+= |a: &mut ExtensionField, b: &ExtensionField| { a.add_mut(b) });
+
+// Very commonly, we want to convert elements of the base field into the extension field.
 impl From<Field> for ExtensionField {
     fn from(x: Field) -> Self {
         Self::from_field(x)
@@ -265,6 +292,13 @@ mod test {
     /// A strategy to generate non-zero field elements.
     fn arb_field_non_zero() -> impl Strategy<Value = Field> {
         arb_field().prop_filter("field elements must be non-zero", |x| x != &Field::zero())
+    }
+
+    prop_compose! {
+        /// A strategy to generate arbitrary extension field elements.
+        fn arb_extension()(a in arb_field(), b in arb_field(), c in arb_field()) -> ExtensionField {
+            ExtensionField { data: [a, b, c] }
+        }
     }
 
     proptest! {
@@ -309,6 +343,20 @@ mod test {
         }
     }
 
+    proptest! {
+        #[test]
+        fn test_extension_addition_commutative(a in arb_extension(), b in arb_extension()) {
+            assert_eq!(a + b, b + a);
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn test_extension_addition_identity(a in arb_extension()) {
+            assert_eq!(a + ExtensionField::zero(), a);
+        }
+    }
+
     #[test]
     fn test_one_plus_one_is_two() {
         assert_eq!(Field::from(1) + Field::from(1), Field::from(2));
@@ -345,5 +393,16 @@ mod test {
         assert_ne!(out, Field::one());
         out = out * out;
         assert_eq!(out, Field::one());
+    }
+
+    #[test]
+    fn test_extension_one_plus_one_is_two() {
+        let x = ExtensionField {
+            data: [Field::from(1), Field::from(2), Field::from(3)],
+        };
+        let y = ExtensionField {
+            data: [Field::from(2), Field::from(4), Field::from(6)],
+        };
+        assert_eq!(x + x, y);
     }
 }
