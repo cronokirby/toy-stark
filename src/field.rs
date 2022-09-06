@@ -202,6 +202,18 @@ impl From<Field> for u64 {
     }
 }
 
+struct ExtensionField {
+    data: [Field; 3],
+}
+
+impl From<Field> for ExtensionField {
+    fn from(x: Field) -> Self {
+        Self {
+            data: [x, Field::zero(), Field::zero()],
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
