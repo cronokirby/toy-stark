@@ -228,6 +228,19 @@ impl ExtensionField {
     pub const fn one() -> Self {
         Self::from_field(Field::one())
     }
+
+    /// A generator of this field.
+    ///
+    /// An element x such that every other non-zero element can be written as y = x^a,
+    /// for some exponent a.
+    ///
+    /// Note that this is not the same generator as the base field, since this
+    /// extension field is larger.
+    pub const fn generator() -> Self {
+        Self {
+            data: [Field(4), Field(1), Field::zero()],
+        }
+    }
 }
 
 impl From<Field> for ExtensionField {
