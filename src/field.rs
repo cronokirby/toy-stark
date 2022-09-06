@@ -10,17 +10,17 @@ const P: u64 = u64::wrapping_neg(1 << 32) + 1;
 struct Field(u64);
 
 impl Field {
-    /// Create the zero element of this field.
+    /// The zero element of this field.
     ///
     /// This is the identity for addition.
-    pub fn zero() -> Self {
+    pub const fn zero() -> Self {
         Field(0)
     }
 
-    /// Create the one element of this field.
+    /// The one element of this field.
     ///
     /// This is the identity for multiplication.
-    pub fn one() -> Self {
+    pub const fn one() -> Self {
         Field(1)
     }
 
@@ -32,7 +32,7 @@ impl Field {
     /// Sometimes you need to ensure that two sets of element don't intersect,
     /// but you don't want to mess with the multiplicative structure of those elements:
     /// multiplying by the generator allows separating the two sets in this way.
-    pub fn generator() -> Self {
+    pub const fn generator() -> Self {
         Field(7)
     }
 
@@ -42,7 +42,7 @@ impl Field {
     ///
     /// This is very useful, because it allows us to perform Number Theoretic Transforms
     /// over this field, which is a very quick method to multiply polynomials.
-    pub fn root_of_unity() -> Self {
+    pub const fn root_of_unity() -> Self {
         Field(20033703337)
     }
 
@@ -203,14 +203,36 @@ impl From<Field> for u64 {
 }
 
 struct ExtensionField {
+    // Represents a polynomial a0 + a1 X + a2 X^2, in that order.
     data: [Field; 3],
+}
+
+impl ExtensionField {
+    /// Create an extension field element from a base field element.
+    const fn from_field(x: Field) -> Self {
+        Self {
+            data: [x, Field::zero(), Field::zero()],
+        }
+    }
+
+    /// The zero element in this field.
+    ///
+    /// This is the identity for addition, and the same as the base field
+    pub const fn zero() -> Self {
+        Self::from_field(Field::zero())
+    }
+
+    /// The one element in this field.
+    ///
+    /// This is the identity for multiplication, and the same as the base field
+    pub const fn one() -> Self {
+        Self::from_field(Field::one())
+    }
 }
 
 impl From<Field> for ExtensionField {
     fn from(x: Field) -> Self {
-        Self {
-            data: [x, Field::zero(), Field::zero()],
-        }
+        Self::from_field(x)
     }
 }
 
