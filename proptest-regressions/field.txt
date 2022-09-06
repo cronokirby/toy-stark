@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc bf299c1570eef24fcf794310623f8f1732ee743322693822a5ed8afb96214e09 # shrinks to a = ExtensionField { data: [Field(0), Field(1), Field(0)] }, b = ExtensionField { data: [Field(0), Field(0), Field(0)] }, c = ExtensionField { data: [Field(0), Field(0), Field(0)] }
+cc cb018947803459a5c975633d562fb753f7244f12bcbfbf736ead82e939f01e07 # shrinks to a = ExtensionField { data: [Field(0), Field(0), Field(0)] }, b = ExtensionField { data: [Field(0), Field(0), Field(1)] }

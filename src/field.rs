@@ -274,6 +274,38 @@ impl ExtensionField {
         out.sub_mut(other);
         out
     }
+
+    // Modify this element by multiplying it with another.
+    fn mul_mut(&mut self, other: &Self) {
+        // First, define c(X) = (a0 + a1 X + a2 X^2)(b0 + b1 X + b2 X^2).
+        //
+        // This is a polynomial of degree 4, so we only have 5 coefficients.
+        // Conveniently, by going from c4 to c0, we can reuse the space in self
+        // for c0, c1, and c2.
+        let c4 = self.data[2] * other.data[2];
+        let c3 = self.data[2] * other.data[1] + self.data[1] * other.data[2];
+        self.data[2] = self.data[2] * other.data[0]
+            + self.data[1] * other.data[1]
+            + self.data[0] * other.data[2];
+        self.data[1] = self.data[1] * other.data[0] + self.data[0] * other.data[1];
+        self.data[0] *= other.data[0];
+
+        // The polynomial defining this field is f(X) = X^3 + 3. This means that
+        // X^3 = -3 mod f. So, c(x) mod 4 = (c0 + c1 X + c2 X^2) - 3(c3 + c4 X).
+
+        // It's faster to just subtract 3 times, rather than multiplying by -3.
+        for _ in 0..3 {
+            self.data[1] -= c4;
+            self.data[0] -= c3;
+        }
+    }
+
+    /// Return the result of multiplying this element with another.
+    fn mul(&self, other: &Self) -> Self {
+        let mut out = *self;
+        out.mul_mut(other);
+        out
+    }
 }
 
 // Now, use all of the functions we've defined inside of the struct to implement
@@ -285,6 +317,8 @@ impl_op_ex!(+ |a: &ExtensionField, b: &ExtensionField| -> ExtensionField { a.add
 impl_op_ex!(+= |a: &mut ExtensionField, b: &ExtensionField| { a.add_mut(b) });
 impl_op_ex!(-|a: &ExtensionField, b: &ExtensionField| -> ExtensionField { a.sub(b) });
 impl_op_ex!(-= |a: &mut ExtensionField, b: &ExtensionField| { a.sub_mut(b) });
+impl_op_ex!(*|a: &ExtensionField, b: &ExtensionField| -> ExtensionField { a.mul(b) });
+impl_op_ex!(*= |a: &mut ExtensionField, b: &ExtensionField| { a.mul_mut(b) });
 
 // Very commonly, we want to convert elements of the base field into the extension field.
 impl From<Field> for ExtensionField {
@@ -381,6 +415,27 @@ mod test {
         }
     }
 
+    proptest! {
+        #[test]
+        fn test_extension_multiplication_commutative(a in arb_extension(), b in arb_extension()) {
+            assert_eq!(a * b, b * a);
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn test_extension_multiplication_identity(a in arb_extension()) {
+            assert_eq!(a * ExtensionField::one(), a);
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn test_extension_multiplication_distributive(a in arb_extension(), b in arb_extension(), c in arb_extension()) {
+            assert_eq!(a * (b + c), a * b + a * c);
+        }
+    }
+
     #[test]
     fn test_one_plus_one_is_two() {
         assert_eq!(Field::from(1) + Field::from(1), Field::from(2));
@@ -428,5 +483,16 @@ mod test {
             data: [Field::from(2), Field::from(4), Field::from(6)],
         };
         assert_eq!(x + x, y);
+    }
+
+    #[test]
+    fn test_x_times_x_is_x_squared() {
+        let x = ExtensionField {
+            data: [Field::zero(), Field::one(), Field::zero()],
+        };
+        let x2 = ExtensionField {
+            data: [Field::zero(), Field::zero(), Field::one()],
+        };
+        assert_eq!(x * x, x2);
     }
 }
