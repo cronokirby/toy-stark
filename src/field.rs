@@ -259,6 +259,21 @@ impl ExtensionField {
         out.add_mut(other);
         out
     }
+
+    /// Modify this element by subtracting another.
+    fn sub_mut(&mut self, other: &Self) {
+        self.data
+            .iter_mut()
+            .zip(other.data.iter())
+            .for_each(|(a, b)| *a -= b)
+    }
+
+    /// Returning the result of subtracting another element from this one.
+    fn sub(&self, other: &Self) -> Self {
+        let mut out = *self;
+        out.sub_mut(other);
+        out
+    }
 }
 
 // Now, use all of the functions we've defined inside of the struct to implement
@@ -268,6 +283,8 @@ impl ExtensionField {
 // references, which is quite convenient.
 impl_op_ex!(+ |a: &ExtensionField, b: &ExtensionField| -> ExtensionField { a.add(b) });
 impl_op_ex!(+= |a: &mut ExtensionField, b: &ExtensionField| { a.add_mut(b) });
+impl_op_ex!(-|a: &ExtensionField, b: &ExtensionField| -> ExtensionField { a.sub(b) });
+impl_op_ex!(-= |a: &mut ExtensionField, b: &ExtensionField| { a.sub_mut(b) });
 
 // Very commonly, we want to convert elements of the base field into the extension field.
 impl From<Field> for ExtensionField {
@@ -354,6 +371,13 @@ mod test {
         #[test]
         fn test_extension_addition_identity(a in arb_extension()) {
             assert_eq!(a + ExtensionField::zero(), a);
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn test_extension_subtraction_with_self_is_zero(a in arb_extension()) {
+            assert_eq!(a - a, ExtensionField::zero());
         }
     }
 
