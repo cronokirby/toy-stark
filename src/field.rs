@@ -306,6 +306,76 @@ impl ExtensionField {
         out.mul_mut(other);
         out
     }
+
+    /// Apply the map of frobenius to this element.
+    ///
+    /// This map sends x to x^P, with P the order of the base field.
+    /// This is an essential component of our inversion algorithm.
+    fn frobenius(&mut self) {
+        // Notice that since P * x = 0, we have (a + b)^P = a^P + b^P.
+        // (To see why, use the binomial expansion, and notice that all but the
+        // first and last terms have P as a factor).
+        //
+        // This means that (a0 + a1 X + a2 X^2)^P = a0^P + a1^P X^P + a2^P X^2P.
+        // Now, in the base field, because there are P - 1 nonzero elements,
+        // we have a^P = P. This allows us to write:
+        //  (a0 + a1 X + a2 X^2)^P = a0 + a1 X^P + a2 X^2P
+        // now we just need to determine how to handle those powers of X.
+
+        // Write e = 3 q + r, then since X^3 = -3, we have:
+        //   X^e = X^(3q + r) = -3^q X^r
+        // Thus, X^P = -3^(P // 3) X^(P % 3), and X^2P = (X^P)^2.
+        //
+        // We could do these calculations by hand, by computer, or just get
+        // sage to do them for us.
+        //
+        // We have:
+        //  X^P = 4294967295 * X
+        //  X^2P = 18446744065119617025 * X^2
+        self.data[1] *= Field(4294967295);
+        self.data[2] *= Field(18446744065119617025);
+    }
+
+    /// Replace this field element with its inverse.
+    ///
+    /// This is an element y such that x * y = 1.
+    pub fn invert(&mut self) {
+        // The exponent r := (P^3 - 1) / (P - 1) is such that a^r is in the base field.
+        // To see why, notice that (a^r)^(P - 1) = 1. This means that the element
+        // a^r must belong to a multiplicative subgroup of size P - 1, which is
+        // just the non-zero elements of the base field. This is because
+        // (P^3 - 1) = (P - 1)(P^2 + P + 1).
+        //
+        // Our inversion strategy is thus to calculate:
+        //
+        //  (a^r)^-1 * a^(r - 1)
+        //
+        // With inversion done in the base field.
+        //
+        // Notice that r - 1 = P^2 + P, so our strategy for calculating a^(r - 1) is:
+        //  a^(r - 1) = (a * a^P)^P.
+
+        // First, put a^(r - 1) into self.
+        let mut a = *self;
+        self.frobenius();
+        *self *= a;
+        self.frobenius();
+        // Now, put a^r into a.
+        a *= &*self;
+        // Calculate (a^r)^-1, knowing that we're in the base field.
+        let a_inv = a.data[0].inverse();
+        // Multiply this with a^(r - 1), to get our inverse.
+        self.data.iter_mut().for_each(|x| *x *= a_inv);
+    }
+
+    /// Return the inverse of a field element.
+    ///
+    /// This is an element y such that x * y = 1.
+    pub fn inverse(&self) -> ExtensionField {
+        let mut out = *self;
+        out.invert();
+        out
+    }
 }
 
 // Now, use all of the functions we've defined inside of the struct to implement
@@ -319,6 +389,8 @@ impl_op_ex!(-|a: &ExtensionField, b: &ExtensionField| -> ExtensionField { a.sub(
 impl_op_ex!(-= |a: &mut ExtensionField, b: &ExtensionField| { a.sub_mut(b) });
 impl_op_ex!(*|a: &ExtensionField, b: &ExtensionField| -> ExtensionField { a.mul(b) });
 impl_op_ex!(*= |a: &mut ExtensionField, b: &ExtensionField| { a.mul_mut(b) });
+impl_op_ex!(/|a: &ExtensionField, b: &ExtensionField| -> ExtensionField { a * b.inverse()});
+impl_op_ex!(/= |a: &mut ExtensionField, b: &ExtensionField| { *a *= b.inverse() });
 
 // Very commonly, we want to convert elements of the base field into the extension field.
 impl From<Field> for ExtensionField {
@@ -350,6 +422,13 @@ mod test {
         fn arb_extension()(a in arb_field(), b in arb_field(), c in arb_field()) -> ExtensionField {
             ExtensionField { data: [a, b, c] }
         }
+    }
+
+    /// A strategy to generate arbitrary extension field elements.
+    fn arb_extension_non_zero() -> impl Strategy<Value = ExtensionField> {
+        arb_extension().prop_filter("extension field elements must be non-zero", |x| {
+            x != &ExtensionField::zero()
+        })
     }
 
     proptest! {
@@ -433,6 +512,13 @@ mod test {
         #[test]
         fn test_extension_multiplication_distributive(a in arb_extension(), b in arb_extension(), c in arb_extension()) {
             assert_eq!(a * (b + c), a * b + a * c);
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn test_extension_division_by_self_is_one(a in arb_extension_non_zero()) {
+            assert_eq!(a / a, ExtensionField::one());
         }
     }
 
