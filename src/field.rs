@@ -5,6 +5,11 @@ use std::mem;
 ///
 /// This is a prime number, and determines the base field we use for constraints.
 const P: u64 = u64::wrapping_neg(1 << 32) + 1;
+/// The order of the root of unity in our field.
+///
+/// This is more specifically the logarithm of the order, which is a more useful
+/// quantity.
+pub const ROOT_OF_UNITY_ORDER: u8 = 32;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Field(u64);
