@@ -1,5 +1,5 @@
 use auto_ops::impl_op_ex;
-use std::mem;
+use std::{iter, mem};
 
 /// The modulus P := 2^64 - 2^32 + 1.
 ///
@@ -9,10 +9,10 @@ const P: u64 = u64::wrapping_neg(1 << 32) + 1;
 ///
 /// This is more specifically the logarithm of the order, which is a more useful
 /// quantity.
-pub const ROOT_OF_UNITY_ORDER: u8 = 32;
+pub const ROOT_OF_UNITY_ORDER: u32 = 32;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-struct Field(u64);
+pub struct Field(u64);
 
 impl Field {
     /// The zero element of this field.
@@ -208,7 +208,7 @@ impl From<Field> for u64 {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-struct ExtensionField {
+pub struct ExtensionField {
     // Represents a polynomial a0 + a1 X + a2 X^2, in that order.
     data: [Field; 3],
 }
@@ -405,36 +405,43 @@ impl From<Field> for ExtensionField {
 }
 
 #[cfg(test)]
-mod test {
+pub mod generators {
     use super::*;
-
     use proptest::prelude::*;
 
     /// A strategy to generate arbitrary field elements.
-    fn arb_field() -> impl Strategy<Value = Field> {
+    pub fn arb_field() -> impl Strategy<Value = Field> {
         // While not cryptographically secure to reduce such a small element,
         // this is more than enough for our testing purposes.
         any::<u64>().prop_map(|x| Field(x % P))
     }
 
     /// A strategy to generate non-zero field elements.
-    fn arb_field_non_zero() -> impl Strategy<Value = Field> {
+    pub fn arb_field_non_zero() -> impl Strategy<Value = Field> {
         arb_field().prop_filter("field elements must be non-zero", |x| x != &Field::zero())
     }
 
     prop_compose! {
         /// A strategy to generate arbitrary extension field elements.
-        fn arb_extension()(a in arb_field(), b in arb_field(), c in arb_field()) -> ExtensionField {
+        pub fn arb_extension()(a in arb_field(), b in arb_field(), c in arb_field()) -> ExtensionField {
             ExtensionField { data: [a, b, c] }
         }
     }
 
     /// A strategy to generate arbitrary extension field elements.
-    fn arb_extension_non_zero() -> impl Strategy<Value = ExtensionField> {
+    pub fn arb_extension_non_zero() -> impl Strategy<Value = ExtensionField> {
         arb_extension().prop_filter("extension field elements must be non-zero", |x| {
             x != &ExtensionField::zero()
         })
     }
+}
+
+#[cfg(test)]
+pub mod test {
+    use super::generators::*;
+    use super::*;
+
+    use proptest::prelude::*;
 
     proptest! {
         #[test]
