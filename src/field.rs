@@ -186,6 +186,7 @@ impl Field {
 // references, which is quite convenient.
 impl_op_ex!(+ |a: &Field, b: &Field| -> Field { a.add(b) });
 impl_op_ex!(+= |a: &mut Field, b: &Field| { a.add_mut(b) });
+impl_op_ex!(-|a: &Field| -> Field { Field::zero().sub(a) });
 impl_op_ex!(-|a: &Field, b: &Field| -> Field { a.sub(b) });
 impl_op_ex!(-= |a: &mut Field, b: &Field| { a.sub_mut(b) });
 impl_op_ex!(*|a: &Field, b: &Field| -> Field { a.mul(b) });
@@ -390,6 +391,7 @@ impl ExtensionField {
 // references, which is quite convenient.
 impl_op_ex!(+ |a: &ExtensionField, b: &ExtensionField| -> ExtensionField { a.add(b) });
 impl_op_ex!(+= |a: &mut ExtensionField, b: &ExtensionField| { a.add_mut(b) });
+impl_op_ex!(-|a: &ExtensionField| -> ExtensionField { ExtensionField::zero().sub(a) });
 impl_op_ex!(-|a: &ExtensionField, b: &ExtensionField| -> ExtensionField { a.sub(b) });
 impl_op_ex!(-= |a: &mut ExtensionField, b: &ExtensionField| { a.sub_mut(b) });
 impl_op_ex!(*|a: &ExtensionField, b: &ExtensionField| -> ExtensionField { a.mul(b) });
