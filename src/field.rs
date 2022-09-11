@@ -1,5 +1,7 @@
+use crate::util;
 use auto_ops::impl_op_ex;
-use std::{iter, mem};
+use itertools::iterate;
+use std::mem;
 
 /// The modulus P := 2^64 - 2^32 + 1.
 ///
