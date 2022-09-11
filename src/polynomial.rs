@@ -21,11 +21,11 @@ fn root_of_unity(lg_degree: u32) -> Field {
 /// A single iteration of our NTT algorithm.
 fn vector_ntt_iter<const INVERSE: bool>(data: &mut [Field], power: Field, skip: usize) {
     let n = data.len();
-    let mut w = Field::one();
     for start in (0..)
         .map(|start| 2 * start * skip)
         .take_while(|&start| start < n)
     {
+        let mut w = Field::one();
         for i in start..start + skip {
             let j = i + skip;
             let (a, b) = (data[i], data[j]);
@@ -40,8 +40,8 @@ fn vector_ntt_iter<const INVERSE: bool>(data: &mut [Field], power: Field, skip: 
                 data[i] = a + w * b;
                 data[j] = a - w * b;
             }
+            w *= power;
         }
-        w *= power;
     }
 }
 
@@ -124,6 +124,18 @@ impl Polynomial {
         vector_ntt::<false>(&mut data);
         NTTPolynomial { evaluations: data }
     }
+
+    /// Evaluate this polynomial at a given point.
+    pub fn evaluate(&self, x: Field) -> Field {
+        let n = self.coefficients.len();
+        let lg_n = util::lg(n);
+        let mut acc = Field::zero();
+        // Use Horner's method, except that we need to reverse the bit order.
+        for i in (0..n).rev().map(|i| util::reverse(i, lg_n)) {
+            acc = acc * x + self.coefficients[i];
+        }
+        acc
+    }
 }
 
 /// Represents the number theoretic transform of a polynomial.
@@ -175,29 +187,57 @@ mod test {
     use crate::field::generators::arb_field;
     use proptest::{collection::vec, prelude::*};
 
-    fn arb_polynomial() -> impl Strategy<Value = Polynomial> {
-        vec(arb_field(), 1 << 8).prop_map(|coefficients| Polynomial { coefficients })
+    fn arb_polynomial(lg_degree: u32) -> impl Strategy<Value = Polynomial> {
+        vec(arb_field(), 1 << lg_degree).prop_map(|coefficients| Polynomial { coefficients })
     }
 
     proptest! {
         #[test]
-        fn test_double_ntt_is_identity(f in arb_polynomial()) {
-            dbg!(&f);
+        fn test_double_ntt_is_identity(f in arb_polynomial(8)) {
             let f_hat = f.ntt();
-            dbg!(&f_hat);
             let f_prime = f_hat.interpolate();
             assert_eq!(f, f_prime);
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn test_ntt_vs_manual_evaluation(f in arb_polynomial(2)) {
+            let f_hat = f.ntt();
+            let w = root_of_unity(2);
+            for (root, &f_root) in iterate(Field::one(), |x| x * w).zip(f_hat.evaluations.iter()) {
+                assert_eq!(f.evaluate(root), f_root);
+            }
         }
     }
 
     #[test]
     fn test_ntt_of_x() {
         let x = Polynomial {
-            coefficients: vec![Field::zero(), Field::one()],
+            coefficients: vec![Field::zero(), Field::zero(), Field::one(), Field::zero()],
         };
+        let w = root_of_unity(2);
         let expected_ntt = NTTPolynomial {
-            evaluations: vec![Field::one(), -Field::one()],
+            evaluations: vec![Field::one(), w, -Field::one(), -w],
         };
         assert_eq!(x.ntt(), expected_ntt);
+    }
+
+    #[test]
+    fn test_polynomial_evaluation_example() {
+        let f = Polynomial {
+            coefficients: vec![
+                Field::from(1),
+                Field::from(4),
+                Field::from(2),
+                Field::from(3),
+            ],
+        };
+        let x = Field::from(7);
+        let expected = f.coefficients[0]
+            + f.coefficients[1] * x * x
+            + f.coefficients[2] * x
+            + f.coefficients[3] * x * x * x;
+        assert_eq!(f.evaluate(x), expected);
     }
 }
