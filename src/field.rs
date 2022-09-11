@@ -11,6 +11,10 @@ const P: u64 = u64::wrapping_neg(1 << 32) + 1;
 /// quantity.
 pub const ROOT_OF_UNITY_ORDER: u32 = 32;
 
+/// Our base field.
+///
+/// This is a field with ~64 bits, and with some nice properties, like having
+/// a root of unity of degree 2^32.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Field(u64);
 
@@ -208,6 +212,11 @@ impl From<Field> for u64 {
     }
 }
 
+/// Represents an element of an extension field.
+///
+/// This is an extension of our base field, used when we need a larger field.
+/// This field has ~192 bits, which we can leverage to reach 128 bits of security
+/// in many places.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ExtensionField {
     // Represents a polynomial a0 + a1 X + a2 X^2, in that order.
