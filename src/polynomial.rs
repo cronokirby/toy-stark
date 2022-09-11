@@ -3,8 +3,14 @@ use itertools::iterate;
 use crate::field::{Field, ROOT_OF_UNITY_ORDER};
 use crate::util;
 
+/// Get a root of unity with a certain degree.
+///
+/// This degree must be low enough, otherwise our field doesn't contain that root.
 fn root_of_unity(lg_degree: u32) -> Field {
     assert!(lg_degree <= ROOT_OF_UNITY_ORDER);
+    // Every squaring halves the degree of the polynomial.
+    // This means that to get to the right degree, we need to square a number
+    // of times based on the difference between the order of our root and the desired order.
     let mut out = Field::root_of_unity();
     for _ in 0..(ROOT_OF_UNITY_ORDER - lg_degree) {
         out *= out;
@@ -12,6 +18,7 @@ fn root_of_unity(lg_degree: u32) -> Field {
     out
 }
 
+/// A single iteration of our NTT algorithm.
 fn vector_ntt_iter<const INVERSE: bool>(data: &mut [Field], power: Field, skip: usize) {
     let n = data.len();
     let mut w = Field::one();
@@ -22,10 +29,14 @@ fn vector_ntt_iter<const INVERSE: bool>(data: &mut [Field], power: Field, skip: 
         for i in start..start + skip {
             let j = i + skip;
             let (a, b) = (data[i], data[j]);
+            // These two transformations are almost inverses, with w being the inverse
+            // in one branch. The difference is that in the INVERSE branch,
+            // we end up with twice the result we need. We correct for this later.
             if INVERSE {
                 data[i] = a + b;
                 data[j] = (a - b) * w;
             } else {
+                // Hopefully the compiler does common subexpression elimination here.
                 data[i] = a + w * b;
                 data[j] = a - w * b;
             }
@@ -34,6 +45,10 @@ fn vector_ntt_iter<const INVERSE: bool>(data: &mut [Field], power: Field, skip: 
     }
 }
 
+/// Calculate the NTT in place.
+///
+/// Note that this will accept and return polynomials in reverse bit order,
+/// and evaluations in normal bit order.
 fn vector_ntt<const INVERSE: bool>(data: &mut [Field]) {
     let n = data.len();
     if n <= 1 {
@@ -44,6 +59,8 @@ fn vector_ntt<const INVERSE: bool>(data: &mut [Field]) {
     // This conversion is fine since we already need to check that lg_n is less than 32.
     let lg_n_usize = lg_n as usize;
 
+    // See CLRS, Section 30.3 for the algorithm here, a bit tricky to explain otherwise.
+
     // Create powers of the root, up to 1
     let mut root = root_of_unity(lg_n);
     if INVERSE {
@@ -51,6 +68,7 @@ fn vector_ntt<const INVERSE: bool>(data: &mut [Field]) {
     }
     let w_powers: Vec<Field> = iterate(root, |x| x * x).take(lg_n_usize).collect();
 
+    // We reverse the order we operate in when calculating the inverse transform.
     if INVERSE {
         let skips = iterate(1 << (lg_n_usize - 1), |x| x >> 1).take(lg_n_usize);
         w_powers
@@ -66,6 +84,7 @@ fn vector_ntt<const INVERSE: bool>(data: &mut [Field]) {
             .for_each(|(power, skip)| vector_ntt_iter::<INVERSE>(data, power, skip));
     }
 
+    // We also need to scale the result appropriately when doing the inverse transform.
     if INVERSE {
         let adjust = Field::from(1 << lg_n).inverse();
         for di in data.iter_mut() {
@@ -74,6 +93,9 @@ fn vector_ntt<const INVERSE: bool>(data: &mut [Field]) {
     };
 }
 
+/// Represents a polynomial over our base field.
+///
+/// We require that the length of this polynomial be a power of two.
 #[derive(Clone, Debug, PartialEq)]
 struct Polynomial {
     // The length of this vector, N, is a power of two.
@@ -93,6 +115,10 @@ struct Polynomial {
 }
 
 impl Polynomial {
+    /// Calculate the number theoretic transform of this polynomial.
+    ///
+    /// This will return a vector containing the evaluations of the polynomial
+    /// at roots of unity.
     pub fn ntt(&self) -> NTTPolynomial {
         let mut data = self.coefficients.clone();
         vector_ntt::<false>(&mut data);
@@ -100,14 +126,18 @@ impl Polynomial {
     }
 }
 
+/// Represents the number theoretic transform of a polynomial.
+///
+/// The transform of a polynomial f is given by evaluating f at roots of unity:
+///   f(w^0), f(w^1), f(w^2), f(w^3), ...
+///
+/// We require that the length of these evaluations be a power of two.
 #[derive(Clone, Debug, PartialEq)]
 struct NTTPolynomial {
     // The length of this vector, N, is a power of two.
     //
     // The vector contains f(w^i) for i in [N], with w an Nth root of unity.
-    // The order of the evaluations is such that evaluations[i] is w^reverse(i, lg N).
-    //
-    // See the comments on `Polynomial` for some discussion on the choice of this convention.
+    // The order of evaluations is f(w^0), f(w^1), f(w^2), ...
     evaluations: Vec<Field>,
 }
 
@@ -131,6 +161,7 @@ impl NTTPolynomial {
         }
     }
 
+    /// Interpolate the evaluations, recovering the underlying polynomial.
     pub fn interpolate(&self) -> Polynomial {
         let mut data = self.evaluations.clone();
         vector_ntt::<true>(&mut data);
